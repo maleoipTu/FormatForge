@@ -1,6 +1,9 @@
 package com.formatforge.app;
 
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Paint;
 import android.media.Image;
 import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
@@ -173,6 +176,15 @@ public final class VideoConv {
                 || "3gp".equals(id) || "3g2".equals(id) || "webm".equals(id))) {
             throw new Exception("Этот видеоформат не поддерживается для изображений");
         }
+        if ("webp".equals(src.ext) || "image/webp".equals(src.mime)) {
+            try {
+                WebpAnimation anim = WebpAnimation.parse(src.cache);
+                if (anim != null && anim.frames.size() > 1) {
+                    return convertAnimatedWebp(src, target, s, p, anim);
+                }
+            } catch (Exception ignored) {
+            }
+        }
         step(p, 2, "Подготовка изображения…");
         Bitmap bmp = ImageConv.load(src, s, p);
         MediaCodec encoder = null;
@@ -319,6 +331,221 @@ public final class VideoConv {
             }
             if (muxer != null) muxer.release();
             bmp.recycle();
+            if (!ok && out != null) out.delete();
+        }
+    }
+
+    private static Output convertAnimatedWebp(SourceFile src, Formats.FormatSpec target,
+                                              Map<String, Object> s, Util.Progress p,
+                                              WebpAnimation anim) throws Exception {
+        int maxDim = ImageConv.num(s, "maxDim", 0);
+        int[] dims = customDims(anim.width, anim.height, ImageConv.num(s, "width", 0),
+                ImageConv.num(s, "height", 0), maxDim);
+        int dstW = dims[0], dstH = dims[1];
+        int totalMs = 0;
+        for (WebpAnimation.Frame f : anim.frames) {
+            totalMs += frameDurationMs(f);
+        }
+        int avgMs = Math.max(1, totalMs / anim.frames.size());
+        int fps = Math.round(1000f / avgMs);
+        if (fps < 1) fps = 1;
+        if (fps > 60) fps = 60;
+        int bitrate = ImageConv.num(s, "bitrate", 4_000_000);
+        if (bitrate < 200_000) bitrate = 200_000;
+        bitrate = compressionBitrate(s, bitrate);
+        String id = target.id;
+        String videoMime = "webm".equals(id) ? findWebmEncoder()
+                : MediaFormat.MIMETYPE_VIDEO_AVC;
+
+        int bg = anim.backgroundColor;
+        if ((bg >>> 24) == 0) bg = 0xFFFFFFFF;
+        else bg |= 0xFF000000;
+
+        Bitmap canvasBmp = Bitmap.createBitmap(anim.width, anim.height, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(canvasBmp);
+        Paint clearPaint = new Paint();
+        clearPaint.setColor(bg);
+        clearPaint.setStyle(Paint.Style.FILL);
+        Paint drawPaint = new Paint(Paint.FILTER_BITMAP_FLAG);
+        BitmapFactory.Options opts = new BitmapFactory.Options();
+        opts.inPreferredConfig = Bitmap.Config.ARGB_8888;
+
+        MediaCodec encoder = null;
+        MediaMuxer muxer = null;
+        File out = null;
+        boolean ok = false;
+        try {
+            step(p, 40, "Подготовка кодеков…");
+            encoder = MediaCodec.createEncoderByType(videoMime);
+            MediaFormat ef = MediaFormat.createVideoFormat(videoMime, dstW, dstH);
+            ef.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible);
+            ef.setInteger(MediaFormat.KEY_BIT_RATE, bitrate);
+            ef.setInteger(MediaFormat.KEY_FRAME_RATE, fps);
+            ef.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1);
+            encoder.configure(ef, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+
+            String base = src.safeBaseName();
+            out = Util.newTempFile(base + "-ff." + target.ext);
+            muxer = new MediaMuxer(out.getAbsolutePath(), muxerFormat(id));
+            encoder.start();
+            step(p, 45, "Кодирование анимации…");
+
+            MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+            int vOut = -1;
+            boolean muxStarted = false;
+            boolean encOutDone = false;
+            long ptsUs = 0;
+            int prevX = 0, prevY = 0, prevW = 0, prevH = 0;
+            boolean prevDispose = false;
+            int count = anim.frames.size();
+            for (int i = 0; i < count && !encOutDone; i++) {
+                if (p != null && p.isCancelled()) throw new InterruptedException("Отменено");
+                WebpAnimation.Frame f = anim.frames.get(i);
+                if (prevDispose) {
+                    canvas.drawRect(prevX, prevY, prevX + prevW, prevY + prevH, clearPaint);
+                }
+                Bitmap frameBmp = null;
+                Bitmap scaled = null;
+                try {
+                    byte[] frameWebp = WebpAnimation.frameToWebp(f);
+                    frameBmp = BitmapFactory.decodeByteArray(frameWebp, 0, frameWebp.length, opts);
+                    if (frameBmp == null) throw new IOException("Не удалось декодировать кадр анимации");
+                    if (f.blend) {
+                        canvas.drawRect(f.x, f.y, f.x + f.w, f.y + f.h, clearPaint);
+                    }
+                    canvas.drawBitmap(frameBmp, f.x, f.y, drawPaint);
+
+                    Bitmap source = canvasBmp;
+                    if (dstW != anim.width || dstH != anim.height) {
+                        scaled = Bitmap.createScaledBitmap(canvasBmp, dstW, dstH, true);
+                        source = scaled;
+                    }
+                    int idx = -1;
+                    for (int tries = 0; tries < 200 && idx < 0; tries++) {
+                        idx = encoder.dequeueInputBuffer(TIMEOUT_US);
+                    }
+                    if (idx < 0) throw new IOException("Кодер видео перегружен");
+                    Image dst = encoder.getInputImage(idx);
+                    if (dst == null) throw new IOException("Кодер не поддерживает YUV-буферы");
+                    try {
+                        fillImage(dst, source);
+                    } finally {
+                        dst.close();
+                    }
+                    encoder.queueInputBuffer(idx, 0, dstW * dstH * 3 / 2, ptsUs, 0);
+                } finally {
+                    if (scaled != null) scaled.recycle();
+                    if (frameBmp != null) frameBmp.recycle();
+                }
+                prevX = f.x;
+                prevY = f.y;
+                prevW = f.w;
+                prevH = f.h;
+                prevDispose = f.dispose;
+                ptsUs += frameDurationMs(f) * 1000L;
+
+                while (true) {
+                    int oi = encoder.dequeueOutputBuffer(info, 0);
+                    if (oi == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                        if (!muxStarted) {
+                            vOut = muxer.addTrack(encoder.getOutputFormat());
+                            muxer.start();
+                            muxStarted = true;
+                        }
+                    } else if (oi >= 0) {
+                        if ((info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) info.size = 0;
+                        if (info.size > 0 && muxStarted) {
+                            ByteBuffer ob = encoder.getOutputBuffer(oi);
+                            if (ob != null) {
+                                ob.position(info.offset);
+                                ob.limit(info.offset + info.size);
+                                muxer.writeSampleData(vOut, ob, info);
+                            }
+                        }
+                        boolean eos = (info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0;
+                        encoder.releaseOutputBuffer(oi, false);
+                        if (eos) {
+                            encOutDone = true;
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+                if (p != null) {
+                    int pct = 45 + (int) ((i + 1) * 50L / count);
+                    p.onProgress(pct, "Кодирование анимации…");
+                }
+            }
+
+            if (!encOutDone) {
+                Bitmap scaled = null;
+                try {
+                    Bitmap source = canvasBmp;
+                    if (dstW != anim.width || dstH != anim.height) {
+                        scaled = Bitmap.createScaledBitmap(canvasBmp, dstW, dstH, true);
+                        source = scaled;
+                    }
+                    int idx = -1;
+                    for (int tries = 0; tries < 200 && idx < 0; tries++) {
+                        idx = encoder.dequeueInputBuffer(TIMEOUT_US);
+                    }
+                    if (idx < 0) throw new IOException("Кодер видео перегружен");
+                    Image dst = encoder.getInputImage(idx);
+                    if (dst == null) throw new IOException("Кодер не поддерживает YUV-буферы");
+                    try {
+                        fillImage(dst, source);
+                    } finally {
+                        dst.close();
+                    }
+                    encoder.queueInputBuffer(idx, 0, dstW * dstH * 3 / 2, ptsUs,
+                            MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                } finally {
+                    if (scaled != null) scaled.recycle();
+                }
+            }
+
+            int guard = 0;
+            while (!encOutDone) {
+                if (++guard > 10000) throw new IOException("Кодер не завершился");
+                int oi = encoder.dequeueOutputBuffer(info, TIMEOUT_US);
+                if (oi == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                    if (!muxStarted) {
+                        vOut = muxer.addTrack(encoder.getOutputFormat());
+                        muxer.start();
+                        muxStarted = true;
+                    }
+                } else if (oi >= 0) {
+                    if ((info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) info.size = 0;
+                    if (info.size > 0 && muxStarted) {
+                        ByteBuffer ob = encoder.getOutputBuffer(oi);
+                        if (ob != null) {
+                            ob.position(info.offset);
+                            ob.limit(info.offset + info.size);
+                            muxer.writeSampleData(vOut, ob, info);
+                        }
+                    }
+                    boolean eos = (info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0;
+                    encoder.releaseOutputBuffer(oi, false);
+                    if (eos) encOutDone = true;
+                }
+            }
+            if (!muxStarted) throw new IOException("Кодер не выдал видеодорожку");
+            try { muxer.stop(); } catch (Exception ignored) { }
+            ok = true;
+            Output result = new Output();
+            result.add(out, src.safeBaseName() + "." + target.ext, target.mime);
+            int seconds = Math.max(1, Math.round(totalMs / 1000f));
+            result.summary = Util.humanSize(out.length()) + " · " + seconds + " с";
+            step(p, 100, "Готово");
+            return result;
+        } finally {
+            if (encoder != null) {
+                try { encoder.stop(); } catch (Exception ignored) { }
+                encoder.release();
+            }
+            if (muxer != null) muxer.release();
+            canvasBmp.recycle();
             if (!ok && out != null) out.delete();
         }
     }
@@ -585,6 +812,10 @@ public final class VideoConv {
 
     private static int clamp(int v) {
         return v < 0 ? 0 : (v > 255 ? 255 : v);
+    }
+
+    private static int frameDurationMs(WebpAnimation.Frame f) {
+        return f.duration > 0 ? f.duration : 100;
     }
 
     private static int compressionBitrate(Map<String, Object> s, int bitrate) {
