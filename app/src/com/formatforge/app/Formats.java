@@ -418,6 +418,7 @@ public final class Formats {
         list.add(SettingSpec.choice("maxDim", "Максимальная сторона", VDIM_LABELS, VDIM_VALUES, 0));
         list.add(SettingSpec.choice("bitrate", "Битрейт видео", VBR_LABELS, VBR_VALUES, 1));
         list.add(SettingSpec.choice("fps", "Частота кадров", FPS_LABELS, FPS_VALUES, 0));
+        list.add(SettingSpec.slider("duration", "Длительность фото, сек", 1, 30, 1, 5));
         if (audio) {
             list.add(SettingSpec.sw("audio", "Сохранить звук", true));
             list.add(SettingSpec.choice("abitrate", "Битрейт аудио", BR_LABELS, BR_VALUES, 3));

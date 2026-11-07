@@ -21,61 +21,7 @@ public final class ImageConv {
 
     public static Output convert(SourceFile src, Formats.FormatSpec target,
                                  Map<String, Object> s, Util.Progress p) throws Exception {
-        int maxDim = num(s, "maxDim", 0);
-        int rotation = num(s, "rotate", -1);
-        Bitmap bmp;
-        try {
-            if (ImageCodec.isCustomSource(src.ext)) {
-                bmp = ImageCodec.decode(src.cache, src.ext);
-            } else {
-                BitmapFactory.Options bounds = new BitmapFactory.Options();
-                bounds.inJustDecodeBounds = true;
-                BitmapFactory.decodeFile(src.cache.getAbsolutePath(), bounds);
-                int w = bounds.outWidth;
-                int h = bounds.outHeight;
-                if (w <= 0 || h <= 0) throw new IOException("Не удалось прочитать изображение");
-                int sample = 1;
-                if (maxDim > 0) {
-                    while (Math.max(w, h) / (sample * 2) >= maxDim) sample *= 2;
-                }
-                BitmapFactory.Options opt = new BitmapFactory.Options();
-                opt.inSampleSize = sample;
-                opt.inPreferredConfig = Bitmap.Config.ARGB_8888;
-                bmp = BitmapFactory.decodeFile(src.cache.getAbsolutePath(), opt);
-            }
-        } catch (OutOfMemoryError e) {
-            throw new IOException("Недостаточно памяти для декодирования изображения");
-        }
-        if (bmp == null) throw new IOException("Формат изображения не поддерживается устройством");
-        check(p);
-        step(p, 12, "Декодирование…");
-
-        int degrees = rotation;
-        if (degrees < 0) degrees = exifRotation(src.cache);
-        if (degrees % 360 != 0) bmp = rotate(bmp, degrees % 360);
-        check(p);
-
-        boolean gray = bool(s, "grayscale", false);
-        if (gray) bmp = grayscale(bmp);
-        check(p);
-        step(p, 35, "Обработка…");
-
-        String fit = str(s, "fit", "inside");
-        if (maxDim > 0) {
-            if ("square".equals(fit)) {
-                bmp = square(bmp, maxDim);
-            } else if ("stretch".equals(fit)) {
-                bmp = Bitmap.createScaledBitmap(bmp, maxDim, maxDim, true);
-            } else {
-                int big = Math.max(bmp.getWidth(), bmp.getHeight());
-                if (big > maxDim) {
-                    float sc = maxDim / (float) big;
-                    int nw = Math.max(1, Math.round(bmp.getWidth() * sc));
-                    int nh = Math.max(1, Math.round(bmp.getHeight() * sc));
-                    bmp = Bitmap.createScaledBitmap(bmp, nw, nh, true);
-                }
-            }
-        }
+        Bitmap bmp = load(src, s, p);
         check(p);
         step(p, 55, "Кодирование…");
 
@@ -134,6 +80,66 @@ public final class ImageConv {
         return result;
     }
 
+    static Bitmap load(SourceFile src, Map<String, Object> s, Util.Progress p) throws Exception {
+        int maxDim = num(s, "maxDim", 0);
+        int rotation = num(s, "rotate", -1);
+        Bitmap bmp;
+        try {
+            if (ImageCodec.isCustomSource(src.ext)) {
+                bmp = ImageCodec.decode(src.cache, src.ext);
+            } else {
+                BitmapFactory.Options bounds = new BitmapFactory.Options();
+                bounds.inJustDecodeBounds = true;
+                BitmapFactory.decodeFile(src.cache.getAbsolutePath(), bounds);
+                int w = bounds.outWidth;
+                int h = bounds.outHeight;
+                if (w <= 0 || h <= 0) throw new IOException("Не удалось прочитать изображение");
+                int sample = 1;
+                if (maxDim > 0) {
+                    while (Math.max(w, h) / (sample * 2) >= maxDim) sample *= 2;
+                }
+                BitmapFactory.Options opt = new BitmapFactory.Options();
+                opt.inSampleSize = sample;
+                opt.inPreferredConfig = Bitmap.Config.ARGB_8888;
+                bmp = BitmapFactory.decodeFile(src.cache.getAbsolutePath(), opt);
+            }
+        } catch (OutOfMemoryError e) {
+            throw new IOException("Недостаточно памяти для декодирования изображения");
+        }
+        if (bmp == null) throw new IOException("Формат изображения не поддерживается устройством");
+        check(p);
+        step(p, 12, "Декодирование…");
+
+        int degrees = rotation;
+        if (degrees < 0) degrees = exifRotation(src.cache);
+        if (degrees % 360 != 0) bmp = rotate(bmp, degrees % 360);
+        check(p);
+
+        boolean gray = bool(s, "grayscale", false);
+        if (gray) bmp = grayscale(bmp);
+        check(p);
+        step(p, 35, "Обработка…");
+
+        String fit = str(s, "fit", "inside");
+        if (maxDim > 0) {
+            if ("square".equals(fit)) {
+                bmp = square(bmp, maxDim);
+            } else if ("stretch".equals(fit)) {
+                bmp = Bitmap.createScaledBitmap(bmp, maxDim, maxDim, true);
+            } else {
+                int big = Math.max(bmp.getWidth(), bmp.getHeight());
+                if (big > maxDim) {
+                    float sc = maxDim / (float) big;
+                    int nw = Math.max(1, Math.round(bmp.getWidth() * sc));
+                    int nh = Math.max(1, Math.round(bmp.getHeight() * sc));
+                    bmp = Bitmap.createScaledBitmap(bmp, nw, nh, true);
+                }
+            }
+        }
+        check(p);
+        return bmp;
+    }
+
     private static void check(Util.Progress p) throws InterruptedException {
         if (p != null && p.isCancelled()) throw new InterruptedException("Отменено");
     }
@@ -162,7 +168,7 @@ public final class ImageConv {
         return out;
     }
 
-    private static Bitmap flatten(Bitmap b, int color) {
+    static Bitmap flatten(Bitmap b, int color) {
         if (!b.hasAlpha()) return b;
         Bitmap out = Bitmap.createBitmap(b.getWidth(), b.getHeight(), Bitmap.Config.ARGB_8888);
         Canvas c = new Canvas(out);

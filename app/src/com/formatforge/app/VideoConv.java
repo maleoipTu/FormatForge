@@ -20,6 +20,9 @@ public final class VideoConv {
 
     public static Output convert(SourceFile src, Formats.FormatSpec target,
                                  Map<String, Object> s, Util.Progress p) throws Exception {
+        if (src.category == Formats.Category.IMAGE) {
+            return convertImage(src, target, s, p);
+        }
         MediaExtractor ex = new MediaExtractor();
         ex.setDataSource(src.cache.getAbsolutePath());
         int vTrack = -1, aTrack = -1;
@@ -157,6 +160,158 @@ public final class VideoConv {
             ex.release();
             if (audioEx != null) audioEx.release();
             if (audioFile != null) audioFile.delete();
+            if (!ok && out != null) out.delete();
+        }
+    }
+
+    private static Output convertImage(SourceFile src, Formats.FormatSpec target,
+                                       Map<String, Object> s, Util.Progress p) throws Exception {
+        String id = target.id;
+        if (!("mp4".equals(id) || "m4v".equals(id) || "mov".equals(id)
+                || "3gp".equals(id) || "3g2".equals(id) || "webm".equals(id))) {
+            throw new Exception("Этот видеоформат не поддерживается для изображений");
+        }
+        step(p, 2, "Подготовка изображения…");
+        Bitmap bmp = ImageConv.load(src, s, p);
+        MediaCodec encoder = null;
+        MediaMuxer muxer = null;
+        File out = null;
+        boolean ok = false;
+        try {
+            bmp = ImageConv.flatten(bmp, 0xFFFFFFFF);
+            int maxDim = ImageConv.num(s, "maxDim", 0);
+            int[] dims = fitEven(bmp.getWidth(), bmp.getHeight(), maxDim);
+            int dstW = dims[0], dstH = dims[1];
+            if (bmp.getWidth() != dstW || bmp.getHeight() != dstH) {
+                Bitmap scaled = Bitmap.createScaledBitmap(bmp, dstW, dstH, true);
+                if (scaled != bmp) bmp.recycle();
+                bmp = scaled;
+            }
+
+            int fps = ImageConv.num(s, "fps", -1);
+            if (fps < 0) fps = 1;
+            if (fps < 1) fps = 1;
+            if (fps > 60) fps = 60;
+            int duration = ImageConv.num(s, "duration", 5);
+            if (duration < 1) duration = 1;
+            if (duration > 60) duration = 60;
+            int totalFrames = fps * duration;
+            int bitrate = ImageConv.num(s, "bitrate", 4_000_000);
+            if (bitrate < 200_000) bitrate = 200_000;
+
+            String videoMime = "webm".equals(id) ? findWebmEncoder()
+                    : MediaFormat.MIMETYPE_VIDEO_AVC;
+            step(p, 40, "Подготовка кодеков…");
+            encoder = MediaCodec.createEncoderByType(videoMime);
+            MediaFormat ef = MediaFormat.createVideoFormat(videoMime, dstW, dstH);
+            ef.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible);
+            ef.setInteger(MediaFormat.KEY_BIT_RATE, bitrate);
+            ef.setInteger(MediaFormat.KEY_FRAME_RATE, fps);
+            ef.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1);
+            encoder.configure(ef, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+
+            String base = src.safeBaseName();
+            out = Util.newTempFile(base + "-ff." + target.ext);
+            muxer = new MediaMuxer(out.getAbsolutePath(), muxerFormat(id));
+            encoder.start();
+            step(p, 45, "Кодирование кадров…");
+
+            MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
+            int vOut = -1;
+            boolean muxStarted = false;
+            boolean encOutDone = false;
+            long frameDuration = 1_000_000L / fps;
+            for (int frame = 0; frame < totalFrames && !encOutDone; frame++) {
+                if (p != null && p.isCancelled()) throw new InterruptedException("Отменено");
+                int idx = -1;
+                for (int tries = 0; tries < 200 && idx < 0; tries++) {
+                    idx = encoder.dequeueInputBuffer(TIMEOUT_US);
+                }
+                if (idx < 0) throw new IOException("Кодер видео перегружен");
+                Image dst = encoder.getInputImage(idx);
+                if (dst == null) throw new IOException("Кодер не поддерживает YUV-буферы");
+                try {
+                    fillImage(dst, bmp);
+                } finally {
+                    dst.close();
+                }
+                int flags = frame == totalFrames - 1 ? MediaCodec.BUFFER_FLAG_END_OF_STREAM : 0;
+                encoder.queueInputBuffer(idx, 0, dstW * dstH * 3 / 2, frame * frameDuration, flags);
+
+                while (true) {
+                    int oi = encoder.dequeueOutputBuffer(info, 0);
+                    if (oi == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                        if (!muxStarted) {
+                            vOut = muxer.addTrack(encoder.getOutputFormat());
+                            muxer.start();
+                            muxStarted = true;
+                        }
+                    } else if (oi >= 0) {
+                        if ((info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) info.size = 0;
+                        if (info.size > 0 && muxStarted) {
+                            ByteBuffer ob = encoder.getOutputBuffer(oi);
+                            if (ob != null) {
+                                ob.position(info.offset);
+                                ob.limit(info.offset + info.size);
+                                muxer.writeSampleData(vOut, ob, info);
+                            }
+                        }
+                        boolean eos = (info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0;
+                        encoder.releaseOutputBuffer(oi, false);
+                        if (eos) {
+                            encOutDone = true;
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+                if (p != null) {
+                    int pct = 45 + (int) ((frame + 1) * 50L / totalFrames);
+                    p.onProgress(pct, "Кодирование кадров…");
+                }
+            }
+
+            int guard = 0;
+            while (!encOutDone) {
+                if (++guard > 10000) throw new IOException("Кодер не завершился");
+                int oi = encoder.dequeueOutputBuffer(info, TIMEOUT_US);
+                if (oi == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
+                    if (!muxStarted) {
+                        vOut = muxer.addTrack(encoder.getOutputFormat());
+                        muxer.start();
+                        muxStarted = true;
+                    }
+                } else if (oi >= 0) {
+                    if ((info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) info.size = 0;
+                    if (info.size > 0 && muxStarted) {
+                        ByteBuffer ob = encoder.getOutputBuffer(oi);
+                        if (ob != null) {
+                            ob.position(info.offset);
+                            ob.limit(info.offset + info.size);
+                            muxer.writeSampleData(vOut, ob, info);
+                        }
+                    }
+                    boolean eos = (info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0;
+                    encoder.releaseOutputBuffer(oi, false);
+                    if (eos) encOutDone = true;
+                }
+            }
+            if (!muxStarted) throw new IOException("Кодер не выдал видеодорожку");
+            try { muxer.stop(); } catch (Exception ignored) { }
+            ok = true;
+            Output result = new Output();
+            result.add(out, src.safeBaseName() + "." + target.ext, target.mime);
+            result.summary = Util.humanSize(out.length()) + " · " + duration + " с";
+            step(p, 100, "Готово");
+            return result;
+        } finally {
+            if (encoder != null) {
+                try { encoder.stop(); } catch (Exception ignored) { }
+                encoder.release();
+            }
+            if (muxer != null) muxer.release();
+            bmp.recycle();
             if (!ok && out != null) out.delete();
         }
     }

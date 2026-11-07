@@ -18,9 +18,18 @@ public final class Convert {
 
     private static String[] idsFor(SourceFile src) {
         switch (src.category) {
-            case IMAGE:
-                return new String[]{"png", "jpg", "jpeg", "webp", "webpl", "bmp", "gif", "tiff",
-                        "ico", "tga", "ppm", "pgm", "pbm", "qoi", "wbmp", "b64", "zip"};
+            case IMAGE: {
+                List<String> ids = new ArrayList<String>();
+                ids.add("png"); ids.add("jpg"); ids.add("jpeg"); ids.add("webp"); ids.add("webpl");
+                ids.add("bmp"); ids.add("gif"); ids.add("tiff"); ids.add("ico"); ids.add("tga");
+                ids.add("ppm"); ids.add("pgm"); ids.add("pbm"); ids.add("qoi"); ids.add("wbmp");
+                if ("webp".equals(src.ext) || "image/webp".equals(src.mime)) {
+                    ids.add("mp4"); ids.add("m4v"); ids.add("mov");
+                    ids.add("3gp"); ids.add("3g2"); ids.add("webm");
+                }
+                ids.add("b64"); ids.add("zip");
+                return ids.toArray(new String[ids.size()]);
+            }
             case AUDIO:
                 return new String[]{"wav", "m4a", "b64", "zip"};
             case VIDEO:

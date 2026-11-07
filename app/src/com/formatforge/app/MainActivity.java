@@ -394,9 +394,12 @@ public class MainActivity extends Activity {
         boolean spreadsheet = source != null && ("xlsx".equals(source.kind) || "ods".equals(source.kind));
         int count = 0;
         boolean docSource = source != null && source.category == Formats.Category.DOCUMENT;
+        boolean imageSource = source != null && source.category == Formats.Category.IMAGE;
         for (Formats.SettingSpec spec : target.settings) {
             if ("sheet".equals(spec.key) && !spreadsheet) continue;
             if ("srcEncoding".equals(spec.key) && docSource) continue;
+            if (imageSource && ("audio".equals(spec.key) || "abitrate".equals(spec.key))) continue;
+            if (!imageSource && "duration".equals(spec.key)) continue;
             switch (spec.kind) {
                 case SLIDER:
                     addSlider(spec);
