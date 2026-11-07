@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FormatForge — интерфейс</title>
+<style>
+  :root{
+    --bg:#0B0C0E; --panel:#111214; --panel2:#151619;
+    --line:#24262B; --line2:#32353B;
+    --text:#E8E6E1; --muted:#8B9098;
+    --accent:#C8F751; --accent-ink:#0B0C0E;
+    --danger:#FF6B5E;
+    --sans:-apple-system,BlinkMacSystemFont,"Roboto","Segoe UI",sans-serif;
+    --mono:ui-monospace,SFMono-Regular,"Roboto Mono","IBM Plex Mono",monospace;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:#08090A;color:var(--text);font-family:var(--sans)}
+  body{padding:18px 12px 48px;display:flex;flex-direction:column;align-items:center;gap:18px}
+  .tabs{display:flex;gap:4px;padding:4px;border:1px solid var(--line);border-radius:10px;background:var(--panel);position:sticky;top:0;z-index:10}
+  .tabs button{all:unset;cursor:pointer;padding:7px 14px;border-radius:7px;font-size:12.5px;color:var(--muted);transition:background .12s,color .12s}
+  .tabs button.on{background:#1D1F23;color:var(--text)}
+  .phone{width:min(400px,100%);background:var(--bg);border:1px solid var(--line);border-radius:22px;overflow:hidden;box-shadow:0 18px 50px #0006}
+  .screen{display:none}
+  .screen.on{display:block}
+  .status{display:flex;justify-content:space-between;align-items:center;padding:12px 20px 0;font-family:var(--mono);font-size:10px;color:#646A73}
+  .status .sig{display:flex;gap:3px;align-items:center}
+  .status .sig i{display:block;width:4px;height:4px;border-radius:50%;background:#646A73}
+  .inner{padding:14px 20px 24px}
+  .top{display:flex;justify-content:space-between;align-items:baseline;padding-bottom:14px}
+  .brand{font-family:var(--mono);font-size:11px;letter-spacing:.18em;color:var(--text)}
+  .rule{height:1px;background:var(--line)}
+  .section{padding:16px 0 18px}
+  .kicker{font-size:11.5px;color:var(--muted);margin:0 0 9px}
+  .row{display:flex;align-items:flex-start;gap:12px}
+  .grow{flex:1;min-width:0}
+  .fname{font-size:16px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .meta{font-family:var(--mono);font-size:10.5px;line-height:1.6;color:#7C828B;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .link{all:unset;cursor:pointer;color:var(--accent);font-size:12.5px;font-weight:600;padding:2px 0;flex:none}
+  .link:active{opacity:.65}
+  .target{display:flex;align-items:center;gap:12px;cursor:pointer}
+  .code{font-family:var(--mono);font-size:22px;letter-spacing:.04em;line-height:1.15}
+  .chev{color:#5E646D;font-size:19px;line-height:1;flex:none}
+  .field{margin-top:16px}
+  .field:first-child{margin-top:0}
+  .field-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+  .field-head span:first-child{font-size:12.5px;color:var(--muted)}
+  .val{font-family:var(--mono);font-size:12px;color:var(--accent)}
+  input[type=range]{-webkit-appearance:none;appearance:none;display:block;width:100%;height:18px;background:transparent;margin:0;padding:0}
+  input[type=range]::-webkit-slider-runnable-track{height:2px;background:linear-gradient(to right,var(--accent) var(--p,90%),#2A2D32 var(--p,90%))}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;margin-top:-6px;border-radius:50%;background:var(--accent);border:0}
+  input[type=range]::-moz-range-track{height:2px;background:#2A2D32}
+  input[type=range]::-moz-range-progress{height:2px;background:var(--accent)}
+  input[type=range]::-moz-range-thumb{width:14px;height:14px;border:0;border-radius:50%;background:var(--accent)}
+  .seg{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:1px}
+  .seg::-webkit-scrollbar{display:none}
+  .seg button{all:unset;flex:none;cursor:pointer;padding:8px 12px;border:1px solid var(--line2);border-radius:7px;font-size:12px;color:var(--muted);line-height:1;transition:.12s}
+  .seg button.on{border-color:var(--accent);color:var(--accent);background:#15180F}
+  .toggle-row{display:flex;align-items:center;gap:12px;margin-top:18px}
+  .toggle-row .grow{font-size:12.5px;color:var(--text)}
+  .switch{width:40px;height:23px;border-radius:99px;border:1px solid var(--line2);background:#17181B;position:relative;flex:none;cursor:pointer;transition:.15s}
+  .switch i{position:absolute;top:3px;left:3px;width:15px;height:15px;border-radius:50%;background:#6E747D;transition:.15s}
+  .switch.on{border-color:var(--accent);background:#15180F}
+  .switch.on i{left:20px;background:var(--accent)}
+  .convert{margin-top:22px;width:100%;height:50px;border:0;border-radius:9px;background:var(--accent);color:var(--accent-ink);font-family:var(--sans);font-size:14.5px;font-weight:700;letter-spacing:.01em;cursor:pointer}
+  .convert:active{transform:scale(.992)}
+  .convert:disabled{background:#1D1F23;color:#5A6068;cursor:default}
+  .result{margin-top:20px;padding-top:18px;border-top:1px solid var(--line)}
+  .result[hidden]{display:none}
+  .ok{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--accent)}
+  .ok svg{width:16px;height:16px;flex:none}
+  .rname{font-size:15px;font-weight:600;margin-top:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rmeta{font-family:var(--mono);font-size:10.5px;line-height:1.7;color:#7C828B;margin-top:4px}
+  .ractions{display:flex;gap:8px;margin-top:14px}
+  .ractions button{all:unset;flex:1;text-align:center;cursor:pointer;height:40px;line-height:40px;border:1px solid var(--line2);border-radius:8px;font-size:12.5px;color:var(--text);transition:.12s}
+  .ractions button:first-child{color:var(--accent);border-color:#3C4224}
+  .ractions button:active{background:#181A1E}
+  /* picker */
+  .sheet-head{display:flex;justify-content:space-between;align-items:center;padding-bottom:14px}
+  .sheet-head h2{margin:0;font-size:16px;font-weight:600;letter-spacing:-.01em}
+  .x{all:unset;cursor:pointer;color:var(--muted);font-size:22px;line-height:1;padding:0 2px}
+  .search{margin:0 0 6px;display:flex;align-items:center;gap:9px;padding:0 12px;height:40px;border:1px solid var(--line2);border-radius:8px;background:#0E0F11;color:var(--muted)}
+  .search svg{width:15px;height:15px;flex:none}
+  .search input{all:unset;flex:1;font-family:var(--sans);font-size:12.5px;color:var(--text)}
+  .search input::placeholder{color:#6B717A}
+  .cat{font-family:var(--mono);font-size:9.5px;letter-spacing:.15em;color:#6B717A;padding:20px 0 7px}
+  .fmt{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #1B1D21;cursor:pointer}
+  .fmt:last-child{border-bottom:0}
+  .fmt .n{font-size:13.5px;font-weight:600}
+  .fmt .d{font-size:11px;color:#7C828B;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fmt .e{font-family:var(--mono);font-size:10.5px;color:#6B717A;flex:none}
+  .fmt.sel{padding-left:10px;border-left:2px solid var(--accent)}
+  .fmt.sel .n{color:var(--accent)}
+  .fmt.sel .e{color:var(--accent)}
+  @media (max-width:420px){ .phone{border-radius:18px} }
+</style>
+</head>
+<body>
+
+<div class="tabs">
+  <button id="t1" class="on" onclick="show(1)">Конвертация</button>
+  <button id="t2" onclick="show(2)">Выбор формата</button>
+</div>
+
+<!-- MAIN -->
+<div class="phone screen on" id="s1">
+  <div class="status"><span>09:41</span><div class="sig"><i></i><i></i><i></i><span>98</span></div></div>
+  <div class="inner">
+    <div class="top">
+      <div class="brand">FORMATFORGE</div>
+    </div>
+    <div class="rule"></div>
+
+    <div class="section">
+      <div class="kicker">Файл</div>
+      <div class="row">
+        <div class="grow">
+          <div class="fname">IMG_2048.png</div>
+          <div class="meta">PNG · 4,2 МБ · 2048×1365</div>
+        </div>
+        <button class="link" onclick="document.getElementById('pick').click()">Заменить</button>
+        <input id="pick" type="file" hidden>
+      </div>
+    </div>
+    <div class="rule"></div>
+
+    <div class="section">
+      <div class="kicker">Формат</div>
+      <div class="target" onclick="show(2)">
+        <div class="grow">
+          <div class="code">JPG</div>
+          <div class="meta">JPEG · сжатие с потерями</div>
+        </div>
+        <div class="chev">›</div>
+      </div>
+    </div>
+    <div class="rule"></div>
+
+    <div class="section">
+      <div class="kicker">Параметры</div>
+
+      <div class="field">
+        <div class="field-head"><span>Качество</span><span class="val" id="qv">90</span></div>
+        <input type="range" min="10" max="100" value="90" id="quality">
+      </div>
+
+      <div class="field">
+        <div class="field-head"><span>Размер</span></div>
+        <div class="seg" data-single>
+          <button class="on">Оригинал</button><button>4096</button><button>2048</button><button>1280</button><button>800</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="field-head"><span>Кадрирование</span></div>
+        <div class="seg" data-single>
+          <button class="on">Вписать</button><button>Квадрат</button><button>Растянуть</button>
+        </div>
+      </div>
+
+      <div class="toggle-row">
+        <div class="grow">Оттенки серого</div>
+        <div class="switch" onclick="this.classList.toggle('on')"><i></i></div>
+      </div>
+    </div>
+    <div class="rule"></div>
+
+    <button class="convert" id="convert">Конвертировать в JPG</button>
+
+    <div class="result" id="result" hidden>
+      <div class="ok">
+        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5l4.5 4.5L17 5.5"/></svg>
+        Готово
+      </div>
+      <div class="rname">IMG_2048.jpg</div>
+      <div class="rmeta">4,2 МБ → 780 КБ<br>Downloads/FormatForge</div>
+      <div class="ractions"><button>Открыть</button><button>Поделиться</button><button>Ещё</button></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- PICKER -->
+<div class="phone screen" id="s2">
+  <div class="status"><span>09:41</span><div class="sig"><i></i><i></i><i></i><span>98</span></div></div>
+  <div class="inner">
+    <div class="sheet-head">
+      <h2>Формат</h2>
+      <button class="x" onclick="show(1)">×</button>
+    </div>
+    <label class="search">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4 4"/></svg>
+      <input placeholder="Найти формат" oninput="filter(this.value)">
+    </label>
+
+    <div class="cat">ИЗОБРАЖЕНИЯ</div>
+    <div class="fmt sel" onclick="pick(this)"><div class="grow"><div class="n">JPEG</div><div class="d">Сжатие с потерями, настройка качества</div></div><div class="e">.jpg</div></div>
+    <div class="fmt" onclick="pick(this)"><div class="grow"><div class="n">PNG</div><div class="d">Без потерь, прозрачность</div></div><div class="e">.png</div></div>
+    <div class="fmt" onclick="pick(this)"><div class="grow"><div class="n">WebP</div><div class="d">Меньше вес, прозрачность</div></div><div class="e">.webp</div></div>
+    <div class="fmt" onclick="pick(this)"><div class="grow"><div class="n">BMP</div><div class="d">Без сжатия</div></div><div class="e">.bmp</div></div>
+
+    <div class="cat">ТЕКСТ</div>
+    <div class="fmt" onclick="pick(this)"><div class="grow"><div class="n">Base64</div><div class="d">Текстовая упаковка файла</div></div><div class="e">.txt</div></div>
+
+    <div class="cat">АРХИВЫ</div>
+    <div class="fmt" onclick="pick(this)"><div class="grow"><div class="n">ZIP</div><div class="d">Упаковка с настройкой сжатия</div></div><div class="e">.zip</div></div>
+
+  </div>
+</div>
+
+<script>
+function show(n){
+  document.getElementById('s1').classList.toggle('on', n===1);
+  document.getElementById('s2').classList.toggle('on', n===2);
+  document.getElementById('t1').classList.toggle('on', n===1);
+  document.getElementById('t2').classList.toggle('on', n===2);
+  if(n===1) window.scrollTo({top:0,behavior:'smooth'});
+}
+function pick(el){
+  el.parentElement.querySelectorAll('.fmt').forEach(x=>x.classList.remove('sel'));
+  el.classList.add('sel');
+  setTimeout(()=>show(1), 140);
+}
+function filter(q){
+  q=q.trim().toLowerCase();
+  document.querySelectorAll('#s2 .fmt').forEach(f=>{
+    f.style.display=f.textContent.toLowerCase().includes(q)?'':'none';
+  });
+}
+document.querySelectorAll('.seg').forEach(seg=>{
+  seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+    seg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+  }));
+});
+const q=document.getElementById('quality'), qv=document.getElementById('qv');
+function upd(){ q.style.setProperty('--p', q.value+'%'); qv.textContent=q.value; }
+q.addEventListener('input',upd); upd();
+document.getElementById('convert').addEventListener('click',()=>{
+  document.getElementById('result').hidden=false;
+  document.getElementById('convert').disabled=true;
+  document.getElementById('convert').textContent='Готово';
+});
+</script>
+</body>
+</html>
