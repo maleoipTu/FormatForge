@@ -50,8 +50,10 @@ public class MainActivity extends Activity {
     private TextView settingsPlaceholder, btnPick, btnConvert, btnOpen, btnShare, btnNew;
     private LinearLayout cardFile, cardTarget, cardSettings, settingsContainer, resultCard;
     private TextView resultName, resultMeta;
+    private TextView sizeEstimate;
 
     private SourceFile source;
+    private SizeEstimator.Info sourceInfo;
     private Formats.FormatSpec target;
     private List<Formats.FormatSpec> targets = new ArrayList<Formats.FormatSpec>();
     private Map<String, Object> values = new LinkedHashMap<String, Object>();
@@ -77,6 +79,7 @@ public class MainActivity extends Activity {
         targetSub = (TextView) findViewById(R.id.targetSub);
         settingsPlaceholder = (TextView) findViewById(R.id.settingsPlaceholder);
         settingsContainer = (LinearLayout) findViewById(R.id.settingsContainer);
+        sizeEstimate = (TextView) findViewById(R.id.sizeEstimate);
         btnConvert = (TextView) findViewById(R.id.btnConvert);
         resultCard = (LinearLayout) findViewById(R.id.resultCard);
         resultName = (TextView) findViewById(R.id.resultName);
@@ -201,12 +204,14 @@ public class MainActivity extends Activity {
             public void run() {
                 try {
                     final SourceFile sf = SourceFile.open(MainActivity.this, uri);
+                    final SizeEstimator.Info info = SizeEstimator.probe(MainActivity.this, sf);
                     final List<Formats.FormatSpec> list = Convert.targetsFor(sf);
                     main.post(new Runnable() {
                         @Override
                         public void run() {
                             pd.dismiss();
                             source = sf;
+                            sourceInfo = info;
                             targets = list;
                             target = null;
                             values.clear();
@@ -387,6 +392,7 @@ public class MainActivity extends Activity {
         if (target == null) {
             settingsPlaceholder.setVisibility(View.VISIBLE);
             settingsContainer.setVisibility(View.GONE);
+            updateSizeEstimate();
             return;
         }
         settingsPlaceholder.setVisibility(View.GONE);
@@ -423,6 +429,27 @@ public class MainActivity extends Activity {
             tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12.5f);
             settingsContainer.addView(tv, topMargin(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, 10));
         }
+        updateSizeEstimate();
+    }
+
+    private void updateSizeEstimate() {
+        if (sizeEstimate == null) return;
+        if (source == null || target == null) {
+            sizeEstimate.setVisibility(View.GONE);
+            return;
+        }
+        long est = SizeEstimator.estimate(source, target, values,
+                sourceInfo != null ? sourceInfo : new SizeEstimator.Info());
+        if (est <= 0) {
+            sizeEstimate.setVisibility(View.GONE);
+            return;
+        }
+        String text = "После сжатия: ≈ " + Util.humanSize(est);
+        if (source.size > 0 && est < source.size) {
+            text += " · −" + Util.humanSize(source.size - est);
+        }
+        sizeEstimate.setText(text);
+        sizeEstimate.setVisibility(View.VISIBLE);
     }
 
     private void addSlider(final Formats.SettingSpec spec) {
@@ -455,6 +482,7 @@ public class MainActivity extends Activity {
                 int v = spec.min + progress * spec.step;
                 values.put(spec.key, v);
                 value.setText(formatSlider(spec, v));
+                updateSizeEstimate();
             }
 
             @Override
@@ -507,6 +535,7 @@ public class MainActivity extends Activity {
                 @Override
                 public void onClick(View v) {
                     values.put(spec.key, spec.values[index]);
+                    updateSizeEstimate();
                     for (TextView c : chips) {
                         styleChip(c, (Integer) c.getTag() == indexFor(spec, values.get(spec.key)));
                     }
@@ -555,6 +584,7 @@ public class MainActivity extends Activity {
             @Override
             public void onCheckedChanged(android.widget.CompoundButton buttonView, boolean isChecked) {
                 values.put(spec.key, isChecked);
+                updateSizeEstimate();
             }
         });
         row.addView(sw);
@@ -593,6 +623,7 @@ public class MainActivity extends Activity {
             @Override
             public void afterTextChanged(Editable s) {
                 values.put(spec.key, s.toString().trim());
+                updateSizeEstimate();
             }
         });
     }
@@ -713,6 +744,12 @@ public class MainActivity extends Activity {
             resultName.setText(one.name);
             StringBuilder meta = new StringBuilder();
             if (out.summary != null && out.summary.length() > 0) meta.append(out.summary).append("\n");
+            if (source != null && source.size > 0 && one.size > 0) {
+                meta.append("Было: ").append(Util.humanSize(source.size));
+                long savedBytes = source.size - one.size;
+                if (savedBytes > 0) meta.append(" · −").append(Util.humanSize(savedBytes));
+                meta.append("\n");
+            }
             meta.append(Exporter.niceFolder(one.folder)).append("/").append(one.name);
             resultMeta.setText(meta.toString());
             btnOpen.setText("Открыть");

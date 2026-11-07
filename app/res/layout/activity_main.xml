@@ -214,6 +214,16 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical" />
+
+            <TextView
+                android:id="@+id/sizeEstimate"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:fontFamily="monospace"
+                android:textColor="@color/accent"
+                android:textSize="11.5sp"
+                android:visibility="gone" />
         </LinearLayout>
 
         <TextView

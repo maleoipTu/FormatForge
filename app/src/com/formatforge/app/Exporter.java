@@ -22,12 +22,14 @@ public final class Exporter {
         public final Uri uri;
         public final String mime;
         public final String folder;
+        public final long size;
 
-        Saved(String name, Uri uri, String mime, String folder) {
+        Saved(String name, Uri uri, String mime, String folder, long size) {
             this.name = name;
             this.uri = uri;
             this.mime = mime;
             this.folder = folder;
+            this.size = size;
         }
     }
 
@@ -71,7 +73,7 @@ public final class Exporter {
                 ContentValues done = new ContentValues();
                 done.put(MediaStore.Downloads.IS_PENDING, 0);
                 cr.update(uri, done, null, null);
-                saved.add(new Saved(display, uri, item.mime, rel));
+                saved.add(new Saved(display, uri, item.mime, rel, item.file.length()));
             } catch (Exception e) {
                 if (uri != null) {
                     try { cr.delete(uri, null, null); } catch (Exception ignored) { }

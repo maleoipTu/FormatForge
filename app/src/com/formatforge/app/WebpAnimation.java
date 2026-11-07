@@ -4,6 +4,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -13,6 +14,7 @@ final class WebpAnimation {
         int x, y, w, h, duration;
         boolean dispose;
         boolean blend;
+        boolean loopStart;
         byte[] data;
     }
 
@@ -31,7 +33,14 @@ final class WebpAnimation {
     }
 
     static WebpAnimation parse(File file) throws IOException {
-        byte[] b = readAll(file);
+        return parse(readAll(file));
+    }
+
+    static WebpAnimation parse(InputStream in) throws IOException {
+        return parse(readAll(in));
+    }
+
+    private static WebpAnimation parse(byte[] b) {
         if (b.length < 12 || !isFourcc(b, 0, "RIFF") || !isFourcc(b, 8, "WEBP")) return null;
         int canvasW = 0, canvasH = 0, bg = 0xFFFFFFFF, loops = 0;
         boolean animated = false;
@@ -136,14 +145,22 @@ final class WebpAnimation {
         FileInputStream in = null;
         try {
             in = new FileInputStream(file);
-            ByteArrayOutputStream out = new ByteArrayOutputStream((int) Math.max(16, file.length()));
-            byte[] buf = new byte[64 * 1024];
-            int n;
-            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-            return out.toByteArray();
+            return readAll(in, file.length());
         } finally {
             if (in != null) try { in.close(); } catch (IOException ignored) { }
         }
+    }
+
+    private static byte[] readAll(InputStream in) throws IOException {
+        return readAll(in, 0);
+    }
+
+    private static byte[] readAll(InputStream in, long hint) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream((int) Math.max(16, hint));
+        byte[] buf = new byte[64 * 1024];
+        int n;
+        while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+        return out.toByteArray();
     }
 
     private static byte[] slice(byte[] b, int off, int len) {

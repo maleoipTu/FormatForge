@@ -14,7 +14,9 @@ import android.media.MediaMuxer;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public final class VideoConv {
@@ -342,11 +344,15 @@ public final class VideoConv {
         int[] dims = customDims(anim.width, anim.height, ImageConv.num(s, "width", 0),
                 ImageConv.num(s, "height", 0), maxDim);
         int dstW = dims[0], dstH = dims[1];
+        int targetSec = ImageConv.num(s, "duration", 5);
+        if (targetSec < 1) targetSec = 1;
+        if (targetSec > 60) targetSec = 60;
+        List<WebpAnimation.Frame> timeline = timeline(anim, targetSec * 1000);
         int totalMs = 0;
-        for (WebpAnimation.Frame f : anim.frames) {
+        for (WebpAnimation.Frame f : timeline) {
             totalMs += frameDurationMs(f);
         }
-        int avgMs = Math.max(1, totalMs / anim.frames.size());
+        int avgMs = Math.max(1, totalMs / timeline.size());
         int fps = Math.round(1000f / avgMs);
         if (fps < 1) fps = 1;
         if (fps > 60) fps = 60;
@@ -397,10 +403,15 @@ public final class VideoConv {
             long ptsUs = 0;
             int prevX = 0, prevY = 0, prevW = 0, prevH = 0;
             boolean prevDispose = false;
-            int count = anim.frames.size();
+            int count = timeline.size();
             for (int i = 0; i < count && !encOutDone; i++) {
                 if (p != null && p.isCancelled()) throw new InterruptedException("Отменено");
-                WebpAnimation.Frame f = anim.frames.get(i);
+                WebpAnimation.Frame f = timeline.get(i);
+                if (f.loopStart) {
+                    canvas.drawColor(bg);
+                    prevDispose = false;
+                    prevX = prevY = prevW = prevH = 0;
+                }
                 if (prevDispose) {
                     canvas.drawRect(prevX, prevY, prevX + prevW, prevY + prevH, clearPaint);
                 }
@@ -814,11 +825,44 @@ public final class VideoConv {
         return v < 0 ? 0 : (v > 255 ? 255 : v);
     }
 
+    private static List<WebpAnimation.Frame> timeline(WebpAnimation anim, int targetMs) {
+        List<WebpAnimation.Frame> out = new ArrayList<WebpAnimation.Frame>();
+        int nativeMs = 0;
+        for (WebpAnimation.Frame f : anim.frames) nativeMs += frameDurationMs(f);
+        if (targetMs <= 0) targetMs = nativeMs;
+        int elapsed = 0;
+        boolean first = true;
+        while (elapsed < targetMs && out.size() < 100000) {
+            boolean loopStart = !first;
+            for (WebpAnimation.Frame src : anim.frames) {
+                int d = frameDurationMs(src);
+                if (elapsed + d > targetMs) d = targetMs - elapsed;
+                if (d <= 0) break;
+                WebpAnimation.Frame f = new WebpAnimation.Frame();
+                f.x = src.x;
+                f.y = src.y;
+                f.w = src.w;
+                f.h = src.h;
+                f.dispose = src.dispose;
+                f.blend = src.blend;
+                f.data = src.data;
+                f.loopStart = loopStart;
+                f.duration = d;
+                loopStart = false;
+                out.add(f);
+                elapsed += d;
+                if (elapsed >= targetMs) break;
+            }
+            first = false;
+        }
+        return out;
+    }
+
     private static int frameDurationMs(WebpAnimation.Frame f) {
         return f.duration > 0 ? f.duration : 100;
     }
 
-    private static int compressionBitrate(Map<String, Object> s, int bitrate) {
+    static int compressionBitrate(Map<String, Object> s, int bitrate) {
         String c = ImageConv.str(s, "compression", "auto");
         double f = 1.0;
         if ("min".equals(c)) f = 1.5;
