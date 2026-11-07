@@ -7,6 +7,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 
 import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -16,6 +17,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.CRC32;
+import java.util.zip.Deflater;
 
 public final class ImageCodec {
 
@@ -48,8 +51,14 @@ public final class ImageCodec {
 
     public static boolean encode(Bitmap b, String id, File out, Map<String, Object> s) throws IOException {
         switch (id) {
+            case "png":
+                String pngCompression = ImageConv.str(s, "compression", "auto");
+                if ("auto".equals(pngCompression)) return false;
+                writePng(b, out, pngLevel(pngCompression));
+                return true;
             case "gif":
-                writeGif(flatten(b, Color.WHITE), out, ImageConv.num(s, "colors", 256));
+                writeGif(flatten(b, Color.WHITE), out,
+                        ImageConv.colorsForCompression(s, ImageConv.num(s, "colors", 256)));
                 return true;
             case "tiff":
                 writeTiff(b, out);
@@ -790,6 +799,76 @@ public final class ImageCodec {
         c.drawColor(color);
         c.drawBitmap(b, 0, 0, null);
         return out;
+    }
+
+    private static int pngLevel(String c) {
+        if ("min".equals(c)) return 1;
+        if ("low".equals(c)) return 3;
+        if ("high".equals(c)) return 9;
+        if ("max".equals(c)) return 9;
+        return 6;
+    }
+
+    private static void writePng(Bitmap b, File out, int level) throws IOException {
+        int w = b.getWidth(), h = b.getHeight();
+        int[] px = new int[w * h];
+        b.getPixels(px, 0, w, 0, 0, w, h);
+        boolean alpha = b.hasAlpha();
+        ByteArrayOutputStream raw = new ByteArrayOutputStream(w * h * (alpha ? 4 : 3) + h);
+        for (int y = 0; y < h; y++) {
+            raw.write(0);
+            for (int x = 0; x < w; x++) {
+                int c = px[y * w + x];
+                raw.write((c >> 16) & 0xFF);
+                raw.write((c >> 8) & 0xFF);
+                raw.write(c & 0xFF);
+                if (alpha) raw.write((c >>> 24) & 0xFF);
+            }
+        }
+        ByteArrayOutputStream idat = new ByteArrayOutputStream();
+        Deflater def = new Deflater(level);
+        try {
+            def.setInput(raw.toByteArray());
+            def.finish();
+            byte[] buf = new byte[8192];
+            while (!def.finished()) {
+                int n = def.deflate(buf);
+                if (n > 0) idat.write(buf, 0, n);
+            }
+        } finally {
+            def.end();
+        }
+        FileOutputStream fos = new FileOutputStream(out);
+        DataOutputStream dos = new DataOutputStream(fos);
+        try {
+            dos.write(new byte[]{(byte) 137, 80, 78, 71, 13, 10, 26, 10});
+            ByteArrayOutputStream ihdr = new ByteArrayOutputStream();
+            DataOutputStream ih = new DataOutputStream(ihdr);
+            ih.writeInt(w);
+            ih.writeInt(h);
+            ih.writeByte(8);
+            ih.writeByte(alpha ? 6 : 2);
+            ih.writeByte(0);
+            ih.writeByte(0);
+            ih.writeByte(0);
+            ih.flush();
+            writePngChunk(dos, "IHDR", ihdr.toByteArray());
+            writePngChunk(dos, "IDAT", idat.toByteArray());
+            writePngChunk(dos, "IEND", new byte[0]);
+        } finally {
+            dos.close();
+        }
+    }
+
+    private static void writePngChunk(DataOutputStream out, String type, byte[] data) throws IOException {
+        out.writeInt(data.length);
+        byte[] t = type.getBytes("US-ASCII");
+        out.write(t);
+        out.write(data);
+        CRC32 crc = new CRC32();
+        crc.update(t);
+        crc.update(data);
+        out.writeInt((int) crc.getValue());
     }
 
     private static void writeGif(Bitmap b, File out, int colors) throws IOException {

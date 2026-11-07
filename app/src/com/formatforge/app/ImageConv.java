@@ -39,7 +39,7 @@ public final class ImageConv {
             if ("jpg".equals(target.id) || "jpeg".equals(target.id)) {
                 bmp = flatten(bmp, bgColor(str(s, "bg", "white")));
             }
-            int quality = num(s, "quality", 90);
+            int quality = qualityForCompression(s, num(s, "quality", 90));
             Bitmap.CompressFormat fmt;
             switch (target.id) {
                 case "png":
@@ -120,24 +120,62 @@ public final class ImageConv {
         check(p);
         step(p, 35, "Обработка…");
 
-        String fit = str(s, "fit", "inside");
-        if (maxDim > 0) {
-            if ("square".equals(fit)) {
-                bmp = square(bmp, maxDim);
-            } else if ("stretch".equals(fit)) {
-                bmp = Bitmap.createScaledBitmap(bmp, maxDim, maxDim, true);
+        int customW = num(s, "width", 0);
+        int customH = num(s, "height", 0);
+        if (customW > 0 || customH > 0) {
+            int w = bmp.getWidth(), h = bmp.getHeight();
+            int nw, nh;
+            if (customW > 0 && customH > 0) {
+                nw = customW;
+                nh = customH;
+            } else if (customW > 0) {
+                nw = customW;
+                nh = Math.max(1, Math.round(h * (customW / (float) w)));
             } else {
-                int big = Math.max(bmp.getWidth(), bmp.getHeight());
-                if (big > maxDim) {
-                    float sc = maxDim / (float) big;
-                    int nw = Math.max(1, Math.round(bmp.getWidth() * sc));
-                    int nh = Math.max(1, Math.round(bmp.getHeight() * sc));
-                    bmp = Bitmap.createScaledBitmap(bmp, nw, nh, true);
+                nh = customH;
+                nw = Math.max(1, Math.round(w * (customH / (float) h)));
+            }
+            if (nw != w || nh != h) bmp = Bitmap.createScaledBitmap(bmp, nw, nh, true);
+        } else {
+            String fit = str(s, "fit", "inside");
+            if (maxDim > 0) {
+                if ("square".equals(fit)) {
+                    bmp = square(bmp, maxDim);
+                } else if ("stretch".equals(fit)) {
+                    bmp = Bitmap.createScaledBitmap(bmp, maxDim, maxDim, true);
+                } else {
+                    int big = Math.max(bmp.getWidth(), bmp.getHeight());
+                    if (big > maxDim) {
+                        float sc = maxDim / (float) big;
+                        int nw = Math.max(1, Math.round(bmp.getWidth() * sc));
+                        int nh = Math.max(1, Math.round(bmp.getHeight() * sc));
+                        bmp = Bitmap.createScaledBitmap(bmp, nw, nh, true);
+                    }
                 }
             }
         }
         check(p);
         return bmp;
+    }
+
+    static int qualityForCompression(Map<String, Object> s, int def) {
+        String c = str(s, "compression", "auto");
+        if ("min".equals(c)) return 100;
+        if ("low".equals(c)) return 90;
+        if ("medium".equals(c)) return 78;
+        if ("high".equals(c)) return 58;
+        if ("max".equals(c)) return 38;
+        return def;
+    }
+
+    static int colorsForCompression(Map<String, Object> s, int def) {
+        String c = str(s, "compression", "auto");
+        if ("min".equals(c)) return 256;
+        if ("low".equals(c)) return 256;
+        if ("medium".equals(c)) return 128;
+        if ("high".equals(c)) return 64;
+        if ("max".equals(c)) return 32;
+        return def;
     }
 
     private static void check(Util.Progress p) throws InterruptedException {

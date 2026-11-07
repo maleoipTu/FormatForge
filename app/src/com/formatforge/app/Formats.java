@@ -159,6 +159,9 @@ public final class Formats {
     private static final String[] ICO_SIZE_LABELS = {"16×16", "32×32", "48×48", "64×64", "128×128", "256×256"};
     private static final Object[] ICO_SIZE_VALUES = {16, 32, 48, 64, 128, 256};
 
+    private static final String[] COMP_LABELS = {"Авто", "Минимальное", "Низкое", "Среднее", "Высокое", "Максимальное"};
+    private static final Object[] COMP_VALUES = {"auto", "min", "low", "medium", "high", "max"};
+
     private static final String[] VDIM_LABELS = {"Оригинал", "1920 px", "1280 px", "854 px", "640 px", "480 px"};
     private static final Object[] VDIM_VALUES = {0, 1920, 1280, 854, 640, 480};
 
@@ -445,7 +448,29 @@ public final class Formats {
     }
 
     private static void add(FormatSpec f) {
+        if (f.category == Category.IMAGE || f.category == Category.VIDEO) {
+            if (!"ico".equals(f.id)) {
+                int at = 0;
+                for (int i = 0; i < f.settings.size(); i++) {
+                    if ("maxDim".equals(f.settings.get(i).key)) {
+                        at = i + 1;
+                        break;
+                    }
+                }
+                f.settings.add(at, SettingSpec.text("width", "Ширина, px", "", "0 — авто"));
+                f.settings.add(at + 1, SettingSpec.text("height", "Высота, px", "", "0 — авто"));
+            }
+            if (supportsCompression(f.id)) {
+                f.settings.add(SettingSpec.choice("compression", "Степень сжатия", COMP_LABELS, COMP_VALUES, 0));
+            }
+        }
         TARGETS.add(f);
+    }
+
+    private static boolean supportsCompression(String id) {
+        return "png".equals(id) || "jpg".equals(id) || "jpeg".equals(id) || "webp".equals(id)
+                || "gif".equals(id) || "mp4".equals(id) || "m4v".equals(id) || "mov".equals(id)
+                || "3gp".equals(id) || "3g2".equals(id) || "webm".equals(id);
     }
 
     public static String mimeForExt(String ext) {

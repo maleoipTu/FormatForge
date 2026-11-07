@@ -53,7 +53,8 @@ public final class VideoConv {
         }
         int rotation = getInt(vFmt, MediaFormat.KEY_ROTATION, 0);
         int maxDim = ImageConv.num(s, "maxDim", 0);
-        int[] dims = fitEven(srcW, srcH, maxDim);
+        int[] dims = customDims(srcW, srcH, ImageConv.num(s, "width", 0),
+                ImageConv.num(s, "height", 0), maxDim);
         int dstW = dims[0], dstH = dims[1];
 
         int fps = ImageConv.num(s, "fps", -1);
@@ -69,6 +70,7 @@ public final class VideoConv {
         if (fps > 60) fps = 60;
         int bitrate = ImageConv.num(s, "bitrate", 4_000_000);
         if (bitrate < 200_000) bitrate = 200_000;
+        bitrate = compressionBitrate(s, bitrate);
         boolean wantAudio = ImageConv.bool(s, "audio", true) && aTrack >= 0 && !"webm".equals(target.id);
 
         String videoMime;
@@ -180,7 +182,11 @@ public final class VideoConv {
         try {
             bmp = ImageConv.flatten(bmp, 0xFFFFFFFF);
             int maxDim = ImageConv.num(s, "maxDim", 0);
-            int[] dims = fitEven(bmp.getWidth(), bmp.getHeight(), maxDim);
+            boolean custom = ImageConv.num(s, "width", 0) > 0 || ImageConv.num(s, "height", 0) > 0;
+            int[] dims = custom
+                    ? customDims(bmp.getWidth(), bmp.getHeight(), ImageConv.num(s, "width", 0),
+                            ImageConv.num(s, "height", 0), 0)
+                    : fitEven(bmp.getWidth(), bmp.getHeight(), maxDim);
             int dstW = dims[0], dstH = dims[1];
             if (bmp.getWidth() != dstW || bmp.getHeight() != dstH) {
                 Bitmap scaled = Bitmap.createScaledBitmap(bmp, dstW, dstH, true);
@@ -198,6 +204,7 @@ public final class VideoConv {
             int totalFrames = fps * duration;
             int bitrate = ImageConv.num(s, "bitrate", 4_000_000);
             if (bitrate < 200_000) bitrate = 200_000;
+            bitrate = compressionBitrate(s, bitrate);
 
             String videoMime = "webm".equals(id) ? findWebmEncoder()
                     : MediaFormat.MIMETYPE_VIDEO_AVC;
@@ -578,6 +585,37 @@ public final class VideoConv {
 
     private static int clamp(int v) {
         return v < 0 ? 0 : (v > 255 ? 255 : v);
+    }
+
+    private static int compressionBitrate(Map<String, Object> s, int bitrate) {
+        String c = ImageConv.str(s, "compression", "auto");
+        double f = 1.0;
+        if ("min".equals(c)) f = 1.5;
+        else if ("low".equals(c)) f = 1.2;
+        else if ("medium".equals(c)) f = 0.8;
+        else if ("high".equals(c)) f = 0.5;
+        else if ("max".equals(c)) f = 0.3;
+        return Math.max(200_000, (int) (bitrate * f));
+    }
+
+    private static int[] customDims(int w, int h, int cw, int ch, int maxDim) {
+        if (cw <= 0 && ch <= 0) return fitEven(w, h, maxDim);
+        int nw, nh;
+        if (cw > 0 && ch > 0) {
+            nw = cw;
+            nh = ch;
+        } else if (cw > 0) {
+            nw = cw;
+            nh = Math.max(1, Math.round(h * (cw / (float) w)));
+        } else {
+            nh = ch;
+            nw = Math.max(1, Math.round(w * (ch / (float) h)));
+        }
+        nw &= ~1;
+        nh &= ~1;
+        if (nw < 2) nw = 2;
+        if (nh < 2) nh = 2;
+        return new int[]{nw, nh};
     }
 
     private static int[] fitEven(int w, int h, int maxDim) {

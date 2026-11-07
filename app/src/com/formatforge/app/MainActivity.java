@@ -575,7 +575,9 @@ public class MainActivity extends Activity {
         et.setHintTextColor(getColor(R.color.textSecondary));
         et.setBackgroundResource(R.drawable.bg_input);
         et.setPadding(dp(14), dp(10), dp(14), dp(10));
-        if ("trimStart".equals(spec.key) || "trimEnd".equals(spec.key) || "sheet".equals(spec.key)) {
+        if ("width".equals(spec.key) || "height".equals(spec.key)) {
+            et.setInputType(InputType.TYPE_CLASS_NUMBER);
+        } else if ("trimStart".equals(spec.key) || "trimEnd".equals(spec.key) || "sheet".equals(spec.key)) {
             et.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
         }
         box.addView(et, topMargin(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 6));
