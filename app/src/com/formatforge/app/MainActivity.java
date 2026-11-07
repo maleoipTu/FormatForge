@@ -428,7 +428,7 @@ public class MainActivity extends Activity {
     private void addSlider(final Formats.SettingSpec spec) {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
-        settingsContainer.addView(box, topMargin(0, ViewGroup.LayoutParams.WRAP_CONTENT, 20));
+        settingsContainer.addView(box, topMargin(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 20));
 
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.HORIZONTAL);
@@ -476,7 +476,7 @@ public class MainActivity extends Activity {
     private void addChoice(final Formats.SettingSpec spec) {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
-        settingsContainer.addView(box, topMargin(0, ViewGroup.LayoutParams.WRAP_CONTENT, 20));
+        settingsContainer.addView(box, topMargin(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 20));
         box.addView(label(spec.title, 12.5f, getColor(R.color.textSecondary), false));
 
         HorizontalScrollView hsv = new HorizontalScrollView(this);
@@ -538,7 +538,7 @@ public class MainActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        settingsContainer.addView(row, topMargin(0, ViewGroup.LayoutParams.WRAP_CONTENT, 18));
+        settingsContainer.addView(row, topMargin(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 18));
         row.addView(label(spec.title, 12.5f, getColor(R.color.textPrimary), false),
                 new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
@@ -563,7 +563,7 @@ public class MainActivity extends Activity {
     private void addText(final Formats.SettingSpec spec) {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
-        settingsContainer.addView(box, topMargin(0, ViewGroup.LayoutParams.WRAP_CONTENT, 20));
+        settingsContainer.addView(box, topMargin(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, 20));
         box.addView(label(spec.title, 12.5f, getColor(R.color.textSecondary), false));
         EditText et = new EditText(this);
         Object v = values.get(spec.key);
