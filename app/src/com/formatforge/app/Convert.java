@@ -19,11 +19,12 @@ public final class Convert {
     private static String[] idsFor(SourceFile src) {
         switch (src.category) {
             case IMAGE:
-                return new String[]{"png", "jpg", "webp", "webpl", "bmp", "b64", "zip"};
+                return new String[]{"png", "jpg", "jpeg", "webp", "webpl", "bmp", "gif", "tiff",
+                        "ico", "tga", "ppm", "pgm", "pbm", "qoi", "wbmp", "b64", "zip"};
             case AUDIO:
                 return new String[]{"wav", "m4a", "b64", "zip"};
             case VIDEO:
-                return new String[]{"m4a", "wav", "b64", "zip"};
+                return new String[]{"mp4", "m4v", "mov", "3gp", "3g2", "webm", "m4a", "wav", "b64", "zip"};
             case TEXT:
                 return new String[]{"txt", "md", "html", "csv", "tsv", "json", "xml", "b64", "unb64", "zip", "tar", "gz"};
             case DOCUMENT:
@@ -71,6 +72,10 @@ public final class Convert {
         if ("zip".equals(id) || "tar".equals(id) || "gz".equals(id)
                 || "unzip".equals(id) || "untar".equals(id) || "ungz".equals(id)) {
             return ArchiveConv.convert(src, target, settings, progress);
+        }
+        if ("mp4".equals(id) || "m4v".equals(id) || "mov".equals(id)
+                || "3gp".equals(id) || "3g2".equals(id) || "webm".equals(id)) {
+            return VideoConv.convert(src, target, settings, progress);
         }
         if ("wav".equals(id) || "m4a".equals(id)) {
             return AudioConv.convert(src, target, settings, progress);

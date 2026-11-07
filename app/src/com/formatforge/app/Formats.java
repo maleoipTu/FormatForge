@@ -153,6 +153,21 @@ public final class Formats {
     private static final String[] BR_LABELS = {"64 кбит/с", "96 кбит/с", "128 кбит/с", "192 кбит/с", "256 кбит/с", "320 кбит/с"};
     private static final Object[] BR_VALUES = {64000, 96000, 128000, 192000, 256000, 320000};
 
+    private static final String[] GIF_COLORS_LABELS = {"16 цветов", "32 цвета", "64 цвета", "128 цветов", "256 цветов"};
+    private static final Object[] GIF_COLORS_VALUES = {16, 32, 64, 128, 256};
+
+    private static final String[] ICO_SIZE_LABELS = {"16×16", "32×32", "48×48", "64×64", "128×128", "256×256"};
+    private static final Object[] ICO_SIZE_VALUES = {16, 32, 48, 64, 128, 256};
+
+    private static final String[] VDIM_LABELS = {"Оригинал", "1920 px", "1280 px", "854 px", "640 px", "480 px"};
+    private static final Object[] VDIM_VALUES = {0, 1920, 1280, 854, 640, 480};
+
+    private static final String[] VBR_LABELS = {"2 Мбит/с", "4 Мбит/с", "6 Мбит/с", "8 Мбит/с", "12 Мбит/с", "20 Мбит/с"};
+    private static final Object[] VBR_VALUES = {2_000_000, 4_000_000, 6_000_000, 8_000_000, 12_000_000, 20_000_000};
+
+    private static final String[] FPS_LABELS = {"Как в файле", "24 кадра/с", "30 кадров/с", "60 кадров/с"};
+    private static final Object[] FPS_VALUES = {-1, 24, 30, 60};
+
     private static final String[] ZIP_LEVEL_LABELS = {"Без сжатия", "Быстро", "Обычное", "Максимум"};
     private static final Object[] ZIP_LEVEL_VALUES = {0, 1, 6, 9};
 
@@ -160,9 +175,11 @@ public final class Formats {
     private static final Object[] DELIM_VALUES = {"auto", ",", ";", "\t", "|"};
 
     static {
-        map("image", Category.IMAGE, "png", "jpg", "jpeg", "jpe", "jfif", "gif", "bmp", "dib", "webp", "heic", "heif", "avif");
+        map("image", Category.IMAGE, "png", "jpg", "jpeg", "jpe", "jfif", "gif", "bmp", "dib", "webp", "heic", "heif", "avif",
+                "ico", "tga", "icb", "vda", "vst", "ppm", "pgm", "pbm", "pnm", "qoi", "wbmp", "tif", "tiff");
         map("audio", Category.AUDIO, "mp3", "m4a", "aac", "wav", "wave", "ogg", "oga", "opus", "flac", "amr", "awb", "mid", "midi", "mka");
-        map("video", Category.VIDEO, "mp4", "m4v", "mkv", "webm", "mov", "3gp", "3g2", "ts", "mts", "avi", "flv", "wmv");
+        map("video", Category.VIDEO, "mp4", "m4v", "mkv", "webm", "mov", "qt", "3gp", "3gpp", "3g2", "3gpp2",
+                "ts", "mts", "m2ts", "m2v", "mpg", "mpeg", "mpe", "vob", "avi", "flv", "f4v", "wmv", "asf", "ogv", "divx", "rm", "rmvb");
         map("text", Category.TEXT, "txt", "text", "md", "markdown", "html", "htm", "xhtml", "csv", "tsv", "json", "xml",
                 "yaml", "yml", "log", "ini", "cfg", "conf", "srt", "vtt", "js", "mjs", "css", "java", "kt", "kts", "py",
                 "rb", "go", "rs", "c", "h", "cpp", "hpp", "cs", "php", "sh", "bash", "zsh", "properties", "gradle",
@@ -208,6 +225,71 @@ public final class Formats {
                         SettingSpec.choice("fit", "Режим масштабирования", FIT_LABELS, FIT_VALUES, 0),
                         SettingSpec.choice("rotate", "Поворот", ROT_LABELS, ROT_VALUES, 0),
                         SettingSpec.sw("grayscale", "Оттенки серого", false)));
+        add(new FormatSpec("jpeg", "JPEG · .jpeg", "jpeg", "image/jpeg", Category.IMAGE,
+                "То же кодирование JPEG, расширение .jpeg")
+                .def(SettingSpec.slider("quality", "Качество", 1, 100, 1, 90),
+                        SettingSpec.choice("maxDim", "Максимальный размер", DIM_LABELS, DIM_VALUES, 0),
+                        SettingSpec.choice("fit", "Режим масштабирования", FIT_LABELS, FIT_VALUES, 0),
+                        SettingSpec.choice("rotate", "Поворот", ROT_LABELS, ROT_VALUES, 0),
+                        SettingSpec.choice("bg", "Фон при прозрачности", BG_LABELS, BG_VALUES, 0),
+                        SettingSpec.sw("grayscale", "Оттенки серого", false)));
+
+        add(new FormatSpec("gif", "GIF", "gif", "image/gif", Category.IMAGE,
+                "Палитра до 256 цветов, прозрачность заменяется фоном")
+                .def(SettingSpec.choice("colors", "Количество цветов", GIF_COLORS_LABELS, GIF_COLORS_VALUES, 4),
+                        SettingSpec.choice("maxDim", "Максимальный размер", DIM_LABELS, DIM_VALUES, 0),
+                        SettingSpec.choice("fit", "Режим масштабирования", FIT_LABELS, FIT_VALUES, 0),
+                        SettingSpec.choice("rotate", "Поворот", ROT_LABELS, ROT_VALUES, 0)));
+
+        add(new FormatSpec("tiff", "TIFF", "tif", "image/tiff", Category.IMAGE,
+                "Несжатый TIFF, совместимый с печатью и архивами")
+                .def(SettingSpec.choice("maxDim", "Максимальный размер", DIM_LABELS, DIM_VALUES, 0),
+                        SettingSpec.choice("fit", "Режим масштабирования", FIT_LABELS, FIT_VALUES, 0),
+                        SettingSpec.choice("rotate", "Поворот", ROT_LABELS, ROT_VALUES, 0),
+                        SettingSpec.sw("grayscale", "Оттенки серого", false)));
+
+        add(new FormatSpec("ico", "ICO", "ico", "image/x-icon", Category.IMAGE,
+                "Иконка Windows с PNG-сжатием и прозрачностью")
+                .def(SettingSpec.choice("size", "Размер иконки", ICO_SIZE_LABELS, ICO_SIZE_VALUES, 5),
+                        SettingSpec.choice("rotate", "Поворот", ROT_LABELS, ROT_VALUES, 0)));
+
+        add(new FormatSpec("tga", "TGA", "tga", "image/x-tga", Category.IMAGE,
+                "Truevision TGA без сжатия, 24 или 32 бита")
+                .def(SettingSpec.choice("maxDim", "Максимальный размер", DIM_LABELS, DIM_VALUES, 0),
+                        SettingSpec.choice("fit", "Режим масштабирования", FIT_LABELS, FIT_VALUES, 0),
+                        SettingSpec.choice("rotate", "Поворот", ROT_LABELS, ROT_VALUES, 0),
+                        SettingSpec.sw("grayscale", "Оттенки серого", false)));
+
+        add(new FormatSpec("ppm", "PPM", "ppm", "image/x-portable-pixmap", Category.IMAGE,
+                "Portable Pixmap, несжатый RGB")
+                .def(SettingSpec.choice("maxDim", "Максимальный размер", DIM_LABELS, DIM_VALUES, 0),
+                        SettingSpec.choice("fit", "Режим масштабирования", FIT_LABELS, FIT_VALUES, 0),
+                        SettingSpec.choice("rotate", "Поворот", ROT_LABELS, ROT_VALUES, 0)));
+
+        add(new FormatSpec("pgm", "PGM", "pgm", "image/x-portable-graymap", Category.IMAGE,
+                "Portable Graymap, несжатые оттенки серого")
+                .def(SettingSpec.choice("maxDim", "Максимальный размер", DIM_LABELS, DIM_VALUES, 0),
+                        SettingSpec.choice("fit", "Режим масштабирования", FIT_LABELS, FIT_VALUES, 0),
+                        SettingSpec.choice("rotate", "Поворот", ROT_LABELS, ROT_VALUES, 0)));
+
+        add(new FormatSpec("pbm", "PBM", "pbm", "image/x-portable-bitmap", Category.IMAGE,
+                "Portable Bitmap, чёрно-белое изображение")
+                .def(SettingSpec.choice("maxDim", "Максимальный размер", DIM_LABELS, DIM_VALUES, 0),
+                        SettingSpec.choice("fit", "Режим масштабирования", FIT_LABELS, FIT_VALUES, 0),
+                        SettingSpec.choice("rotate", "Поворот", ROT_LABELS, ROT_VALUES, 0)));
+
+        add(new FormatSpec("qoi", "QOI", "qoi", "image/qoi", Category.IMAGE,
+                "Quite OK Image: быстрый формат без потерь")
+                .def(SettingSpec.choice("maxDim", "Максимальный размер", DIM_LABELS, DIM_VALUES, 0),
+                        SettingSpec.choice("fit", "Режим масштабирования", FIT_LABELS, FIT_VALUES, 0),
+                        SettingSpec.choice("rotate", "Поворот", ROT_LABELS, ROT_VALUES, 0)));
+
+
+        add(new FormatSpec("wbmp", "WBMP", "wbmp", "image/vnd.wap.wbmp", Category.IMAGE,
+                "Чёрно-белый WBMP для мобильных устройств")
+                .def(SettingSpec.choice("maxDim", "Максимальный размер", DIM_LABELS, DIM_VALUES, 0),
+                        SettingSpec.choice("fit", "Режим масштабирования", FIT_LABELS, FIT_VALUES, 0),
+                        SettingSpec.choice("rotate", "Поворот", ROT_LABELS, ROT_VALUES, 0)));
 
         // ---------- audio ----------
         add(new FormatSpec("wav", "WAV", "wav", "audio/wav", Category.AUDIO,
@@ -225,6 +307,31 @@ public final class Formats {
                         SettingSpec.choice("channels", "Каналы", CH_LABELS, CH_VALUES, 1),
                         SettingSpec.text("trimStart", "Обрезать начало, сек", "0", "0 — без обрезки"),
                         SettingSpec.text("trimEnd", "Обрезать конец, сек", "0", "0 — до конца")));
+
+        // ---------- video ----------
+        add(new FormatSpec("mp4", "MP4 · H.264", "mp4", "video/mp4", Category.VIDEO,
+                "Совместимый видеофайл H.264 + AAC")
+                .def(videoSettings(true)));
+
+        add(new FormatSpec("m4v", "M4V · H.264", "m4v", "video/x-m4v", Category.VIDEO,
+                "Видео для Apple-устройств в контейнере MP4")
+                .def(videoSettings(true)));
+
+        add(new FormatSpec("mov", "MOV · QuickTime", "mov", "video/quicktime", Category.VIDEO,
+                "QuickTime-совместимый контейнер на базе MP4")
+                .def(videoSettings(true)));
+
+        add(new FormatSpec("3gp", "3GP · H.264", "3gp", "video/3gpp", Category.VIDEO,
+                "Компактное видео для старых мобильных устройств")
+                .def(videoSettings(true)));
+
+        add(new FormatSpec("3g2", "3G2 · H.264", "3g2", "video/3gpp2", Category.VIDEO,
+                "Видео 3GPP2 для мобильных устройств")
+                .def(videoSettings(true)));
+
+        add(new FormatSpec("webm", "WebM · VP8/VP9", "webm", "video/webm", Category.VIDEO,
+                "Открытый контейнер; звук не сохраняется")
+                .def(videoSettings(false)));
 
         // ---------- text ----------
         add(new FormatSpec("txt", "TXT", "txt", "text/plain", Category.TEXT,
@@ -304,6 +411,18 @@ public final class Formats {
                 .def(SettingSpec.text("ext", "Расширение результата", "bin", "например jpg, pdf, zip")));
 
         for (FormatSpec f : TARGETS) BY_ID.put(f.id, f);
+    }
+
+    private static List<SettingSpec> videoSettings(boolean audio) {
+        List<SettingSpec> list = new ArrayList<SettingSpec>();
+        list.add(SettingSpec.choice("maxDim", "Максимальная сторона", VDIM_LABELS, VDIM_VALUES, 0));
+        list.add(SettingSpec.choice("bitrate", "Битрейт видео", VBR_LABELS, VBR_VALUES, 1));
+        list.add(SettingSpec.choice("fps", "Частота кадров", FPS_LABELS, FPS_VALUES, 0));
+        if (audio) {
+            list.add(SettingSpec.sw("audio", "Сохранить звук", true));
+            list.add(SettingSpec.choice("abitrate", "Битрейт аудио", BR_LABELS, BR_VALUES, 3));
+        }
+        return list;
     }
 
     private static List<SettingSpec> textSettings(SettingSpec... extra) {

@@ -226,6 +226,11 @@ public final class SourceFile {
         if (n >= 4 && h[0] == 'O' && h[1] == 'g' && h[2] == 'g' && h[3] == 'S') return "audio";
         if (n >= 4 && h[0] == 'f' && h[1] == 'L' && h[2] == 'a' && h[3] == 'C') return "audio";
         if (n >= 4 && h[0] == 0x1A && h[1] == 0x45 && h[2] == 0xDF && h[3] == 0xA3) return "video";
+        if (n >= 4 && h[0] == 0 && h[1] == 0 && h[2] == 1 && h[3] == 0) return "image";
+        if (n >= 4 && h[0] == 'q' && h[1] == 'o' && h[2] == 'i' && h[3] == 'f') return "image";
+        if (n >= 4 && ((h[0] == 'I' && h[1] == 'I' && h[2] == 42 && h[3] == 0)
+                || (h[0] == 'M' && h[1] == 'M' && h[2] == 0 && h[3] == 42))) return "image";
+        if (n >= 2 && h[0] == 'P' && h[1] >= '1' && h[1] <= '6') return "image";
         if (looksText(h, n)) return "text";
         return "binary";
     }

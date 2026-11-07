@@ -21,26 +21,28 @@ public final class ImageConv {
 
     public static Output convert(SourceFile src, Formats.FormatSpec target,
                                  Map<String, Object> s, Util.Progress p) throws Exception {
-        BitmapFactory.Options bounds = new BitmapFactory.Options();
-        bounds.inJustDecodeBounds = true;
-        BitmapFactory.decodeFile(src.cache.getAbsolutePath(), bounds);
-        int w = bounds.outWidth;
-        int h = bounds.outHeight;
-        if (w <= 0 || h <= 0) throw new IOException("Не удалось прочитать изображение");
-
         int maxDim = num(s, "maxDim", 0);
         int rotation = num(s, "rotate", -1);
-        int sample = 1;
-        if (maxDim > 0) {
-            while (Math.max(w, h) / (sample * 2) >= maxDim) sample *= 2;
-        }
-
-        BitmapFactory.Options opt = new BitmapFactory.Options();
-        opt.inSampleSize = sample;
-        opt.inPreferredConfig = Bitmap.Config.ARGB_8888;
         Bitmap bmp;
         try {
-            bmp = BitmapFactory.decodeFile(src.cache.getAbsolutePath(), opt);
+            if (ImageCodec.isCustomSource(src.ext)) {
+                bmp = ImageCodec.decode(src.cache, src.ext);
+            } else {
+                BitmapFactory.Options bounds = new BitmapFactory.Options();
+                bounds.inJustDecodeBounds = true;
+                BitmapFactory.decodeFile(src.cache.getAbsolutePath(), bounds);
+                int w = bounds.outWidth;
+                int h = bounds.outHeight;
+                if (w <= 0 || h <= 0) throw new IOException("Не удалось прочитать изображение");
+                int sample = 1;
+                if (maxDim > 0) {
+                    while (Math.max(w, h) / (sample * 2) >= maxDim) sample *= 2;
+                }
+                BitmapFactory.Options opt = new BitmapFactory.Options();
+                opt.inSampleSize = sample;
+                opt.inPreferredConfig = Bitmap.Config.ARGB_8888;
+                bmp = BitmapFactory.decodeFile(src.cache.getAbsolutePath(), opt);
+            }
         } catch (OutOfMemoryError e) {
             throw new IOException("Недостаточно памяти для декодирования изображения");
         }
@@ -83,10 +85,14 @@ public final class ImageConv {
         Output result = new Output();
         result.add(out, base + "." + ext, target.mime);
 
-        if ("bmp".equals(target.id)) {
+        if (ImageCodec.encode(bmp, target.id, out, s)) {
+            // handled by ImageCodec
+        } else if ("bmp".equals(target.id)) {
             BmpWriter.write(flatten(bmp, Color.WHITE), out);
         } else {
-            if ("jpg".equals(target.id)) bmp = flatten(bmp, bgColor(str(s, "bg", "white")));
+            if ("jpg".equals(target.id) || "jpeg".equals(target.id)) {
+                bmp = flatten(bmp, bgColor(str(s, "bg", "white")));
+            }
             int quality = num(s, "quality", 90);
             Bitmap.CompressFormat fmt;
             switch (target.id) {
